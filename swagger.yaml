@@ -12,6 +12,8 @@ components:
       type: object
     Policy:
       properties:
+        accountBalance:
+          type: integer
         createdAt:
           format: date-time
           type: string
@@ -29,6 +31,8 @@ components:
         updatedAt:
           format: date-time
           type: string
+        version:
+          type: integer
       type: object
     PolicyListResponse:
       properties:
@@ -58,6 +62,14 @@ components:
         - policyNumber
         - premiumAmount
         - currency
+      type: object
+    TopUpRequest:
+      properties:
+        amount:
+          example: 500000
+          type: integer
+      required:
+        - amount
       type: object
   securitySchemes:
     basicAuth:
@@ -219,6 +231,66 @@ paths:
       security:
         - bearerAuth: []
       summary: Deactivate policy
+  /policies/{id}/top-up:
+    post:
+      description: |
+        Add money to policy account balance.
+
+        ⚠️ This operation is NOT idempotent by default (amount is added).
+        ✅ Using Idempotency-Key ensures the request is processed only once.
+
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: |
+            Unique key to ensure request is executed only once.
+            Same key + same request → no duplicate processing.
+
+          in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopUpRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+          description: Top-up successful
+          headers:
+            ETag:
+              description: Current resource version
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Policy not found
+      security:
+        - bearerAuth: []
+      summary: Top-up policy account balance (Idempotency demo)
   parameters:
     - in: path
       name: id
