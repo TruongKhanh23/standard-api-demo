@@ -1,0 +1,58 @@
+# Node modules
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Dependency directories
+jspm_packages/
+
+# Coverage directory
+coverage/
+
+# Build output
+dist/
+build/
+
+# Optional npm cache
+.npm
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+
+# Swagger UI cache (optional)
+swagger-ui/
+
+# Idempotency temp store (nếu lưu file)
+idempotency-store.json
+
+# Test artifacts
+test-report/
