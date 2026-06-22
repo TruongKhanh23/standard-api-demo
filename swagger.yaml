@@ -189,7 +189,44 @@ paths:
       security:
         - bearerAuth: []
       summary: Get policy by ID
-    patch: null
+    patch: 
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+          description: Updated
+        '404':
+          description: Not found
+        delete:
+          parameters:
+            - in: path
+              name: id
+              required: true
+              schema:
+                type: string
+          responses:
+            '204':
+              description: Deleted
+          security:
+            - bearerAuth: []
+          summary: Delete policy
+      security:
+        - bearerAuth: []
+      summary: Partially update policy
     put:
       parameters:
         - in: path
@@ -238,7 +275,6 @@ paths:
 
         ⚠️ This operation is NOT idempotent by default (amount is added).
         ✅ Using Idempotency-Key ensures the request is processed only once.
-
       parameters:
         - in: path
           name: id
@@ -291,42 +327,5 @@ paths:
       security:
         - bearerAuth: []
       summary: Top-up policy account balance (Idempotency demo)
-  parameters:
-    - in: path
-      name: id
-      required: true
-      schema:
-        type: string
-  requestBody:
-    content:
-      application/json:
-        schema:
-          type: object
-    required: true
-  responses:
-    '200':
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Policy'
-      description: Updated
-    '404':
-      description: Not found
-    delete:
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: Deleted
-      security:
-        - bearerAuth: []
-      summary: Delete policy
-  security:
-    - bearerAuth: []
-  summary: Partially update policy
 servers:
   - url: http://localhost:3000

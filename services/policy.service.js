@@ -1,8 +1,15 @@
 const { v4: uuidv4 } = require("uuid");
 
+const generatePolicyId = () => {
+  return "pol_" + uuidv4().replace(/-/g, "").slice(0, 12);
+};
+
+let internalCounter = 1;
+
 let policies = [
   {
-    id: uuidv4(),
+    internalId: internalCounter++,
+    id: generatePolicyId(),
     policyNumber: "P-001",
     premiumAmount: 1000000,
     accountBalance: 1000000,
@@ -13,7 +20,8 @@ let policies = [
     updatedAt: new Date().toISOString(),
   },
   {
-    id: uuidv4(),
+    internalId: internalCounter++,
+    id: generatePolicyId(),
     policyNumber: "P-002",
     premiumAmount: 2000000,
     accountBalance: 1000000,
@@ -58,8 +66,17 @@ exports.create = (policy) => {
     throw new Error("DUPLICATE_POLICY");
   }
 
-  policies.push(policy);
-  return policy;
+  const newPolicy = {
+    ...policy,
+    internalId: internalCounter++,
+    id: generatePolicyId(),
+    version: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  policies.push(newPolicy);
+  return newPolicy;
 };
 
 exports.update = (id, data) => {
@@ -71,6 +88,7 @@ exports.update = (id, data) => {
   const existing = policies[index];
 
   policies[index] = {
+    internalId: existing.internalId,
     id: existing.id,
     createdAt: existing.createdAt,
 
@@ -87,16 +105,23 @@ exports.update = (id, data) => {
 };
 
 exports.patch = (id, partialData) => {
-  console.log("🔧 Service: PATCH policy", id);
-  console.log("Partial Data:", partialData);
-
   const index = policies.findIndex((p) => p.id === id);
   if (index === -1) return null;
 
-  // merge dữ liệu (partial update)
+  const allowedFields = ["premiumAmount", "currency", "status"];
+
+  const sanitized = {};
+
+  for (const key of allowedFields) {
+    if (partialData[key] !== undefined) {
+      sanitized[key] = partialData[key];
+    }
+  }
+
   policies[index] = {
     ...policies[index],
-    ...partialData,
+    ...sanitized,
+    version: policies[index].version + 1,
     updatedAt: new Date().toISOString(),
   };
 

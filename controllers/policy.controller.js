@@ -1,10 +1,28 @@
 const service = require("../services/policy.service");
 const { createPolicy } = require("../models/policy.model");
 
+function isDebugMode(req) {
+  return req.headers["x-debug-mode"] === "true";
+}
+
+function mapResponse(policy, isDebug) {
+  if (isDebug) {
+    return policy;
+  }
+
+  const { internalId, ...rest } = policy;
+  return rest;
+}
+
 exports.getAll = (req, res) => {
-  console.log("GET ALL | req.query: ", req.query);
   const result = service.getAll(req.query);
-  res.json(result);
+
+  const debug = isDebugMode(req);
+
+  res.json({
+    ...result,
+    data: result.data.map((p) => mapResponse(p, debug)),
+  });
 };
 
 exports.getById = (req, res) => {
@@ -14,14 +32,21 @@ exports.getById = (req, res) => {
     return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
   }
 
-  // ✅ ADD THIS
+  const debug = isDebugMode(req);
+
   res.setHeader("ETag", policy.version.toString());
 
-  res.json(policy);
+  res.json(mapResponse(policy, debug));
 };
 
 exports.create = (req, res) => {
   const { policyNumber, premiumAmount, currency } = req.body;
+
+  if (req.body.id) {
+    return res
+      .status(400)
+      .json(error("INVALID_REQUEST", "id is read-only", req));
+  }
 
   if (!policyNumber || !premiumAmount || !currency) {
     return res
@@ -36,9 +61,12 @@ exports.create = (req, res) => {
   }
 
   try {
-    const policy = createPolicy(req.body);
-    service.create(policy);
-    res.status(201).json(policy);
+    const policyData = createPolicy(req.body);
+    const policy = service.create(policyData);
+
+    const debug = isDebugMode(req);
+
+    res.status(201).json(mapResponse(policy, debug));
   } catch (err) {
     return res
       .status(400)
@@ -48,6 +76,12 @@ exports.create = (req, res) => {
 
 exports.update = (req, res) => {
   console.log("➡️ Controller: PUT policy", req.params.id);
+
+  if (req.body.id) {
+    return res
+      .status(400)
+      .json(error("INVALID_REQUEST", "id is read-only", req));
+  }
 
   const existing = service.getById(req.params.id);
   if (!existing) {
@@ -82,11 +116,38 @@ exports.update = (req, res) => {
 
   res.setHeader("ETag", policy.version.toString());
 
-  res.json(policy);
+  const debug = isDebugMode(req);
+
+  res.status(201).json(mapResponse(policy, debug));
 };
 
 exports.patch = (req, res) => {
   console.log("➡️ Controller: PATCH policy", req.params.id);
+
+  const existing = service.getById(req.params.id);
+  if (!existing) {
+    return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
+  }
+
+  const ifMatch = req.headers["if-match"];
+
+  if (!ifMatch) {
+    return res
+      .status(428)
+      .json(error("PRECONDITION_REQUIRED", "Missing If-Match header", req));
+  }
+
+  if (parseInt(ifMatch) !== existing.version) {
+    return res
+      .status(412)
+      .json(error("PRECONDITION_FAILED", "Resource was modified", req));
+  }
+
+  if (req.body.id) {
+    return res
+      .status(400)
+      .json(error("INVALID_REQUEST", "id is read-only", req));
+  }
 
   // 1. Empty body
   if (!req.body || Object.keys(req.body).length === 0) {
@@ -142,7 +203,9 @@ exports.patch = (req, res) => {
     return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
   }
 
-  res.json(policy);
+  const debug = isDebugMode(req);
+
+  res.status(201).json(mapResponse(policy, debug));
 };
 
 exports.topUp = (req, res) => {
@@ -162,7 +225,9 @@ exports.topUp = (req, res) => {
     return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
   }
 
-  res.json(policy);
+  const debug = isDebugMode(req);
+
+  res.status(201).json(mapResponse(policy, debug));
 };
 
 function error(code, message, req) {
@@ -188,7 +253,7 @@ exports.deactivate = (req, res) => {
     return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
   }
 
-  res.json(policy);
+  res.json(mapResponse(policy));
 };
 
 function error(code, message, req) {
