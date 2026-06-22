@@ -1,3 +1,4 @@
+const { error } = require('../utils/response.util');
 const service = require("../services/policy.service");
 const { createPolicy } = require("../models/policy.model");
 
@@ -277,37 +278,41 @@ exports.patch = (req, res) => {
   res.status(201).json(mapResponse(policy, req));
 };
 
-exports.topUp = async (req, res) => {
+
+exports.topUp = async (req, res, next) => {
   console.log("➡️ Controller: TOP-UP", req.params.id);
 
   const { amount } = req.body;
   const idempotencyKey = req.headers["idempotency-key"];
 
-  // Validate input
   if (!amount || isNaN(amount) || amount <= 0) {
-    return res
-      .status(400)
-      .json(error("INVALID_REQUEST", "Amount must be positive number", req));
+    return res.status(400).json(
+      error("INVALID_REQUEST", "Amount must be positive number", req)
+    );
   }
 
   try {
-    // Pass idempotency key xuống service
-    const policy = await service.topUp(req.params.id, amount, idempotencyKey);
+    const policy = await service.topUp(
+      req.params.id,
+      amount,
+      idempotencyKey
+    );
 
     if (!policy) {
-      return res
-        .status(404)
-        .json(error("NOT_FOUND", "Policy not found", req));
+      return res.status(404).json(
+        error("NOT_FOUND", "Policy not found", req)
+      );
     }
 
-    // Add header để client hiểu retry semantics
-    if (idempotencyKey) {
+    if (idempotencyKey && idempotencyKey.trim() !== "") {
       res.set("Idempotency-Key", idempotencyKey);
     }
 
-    res.status(201).json(mapResponse(policy, req));
+    res.setHeader("Content-Type", "application/json");
+
+    return res.status(201).json(mapResponse(policy, req));
+
   } catch (err) {
-    // Handle duplicate hoặc business conflict
     if (err.message === "DUPLICATE_REQUEST") {
       return res.status(409).json({
         error: "Duplicate request detected",
@@ -315,17 +320,9 @@ exports.topUp = async (req, res) => {
       });
     }
 
-    throw err; // forward to error middleware
+    return next(err); // ✅ FIX
   }
 };
-
-function error(code, message, req) {
-  return {
-    code,
-    message,
-    correlationId: req.correlationId,
-  };
-}
 
 exports.delete = (req, res) => {
   const success = service.delete(req.params.id);

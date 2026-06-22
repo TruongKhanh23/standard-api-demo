@@ -3,7 +3,7 @@ const PROCESSING_TIMEOUT = 5000;
 
 exports.idempotency = (req, res, next) => {
   const key = req.headers["idempotency-key"];
-  if (!key) return next();
+  if (!key || key.trim() === "") return next();
 
   console.log("🔑 Idempotency-Key:", key);
 

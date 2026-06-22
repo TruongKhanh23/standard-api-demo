@@ -170,7 +170,7 @@ paths:
           required: true
           schema:
             type: string
-            example: admin
+          example: admin
       responses:
         '200':
           description: Authorization code generated
@@ -237,6 +237,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Policy'
+              examples:
+                example1:
+                  value:
+                    id: "pol_185495e455ae"
+                    policyNumber: "P-001"
+                    premiumAmount: 1000000
+                    accountBalance: "****1000"
+                    currency: "VND"
+                    status: "ACTIVE"
           description: Created
         '400':
           content:
@@ -255,6 +264,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "pol_185495e455ae"
         - in: header
           name: X-Debug-Mode
           required: false
@@ -292,11 +302,13 @@ paths:
           required: true
           schema:
             type: string
+          example: "pol_185495e455ae"
         - in: header
           name: If-Match
           required: true
           schema:
             type: string
+          example: "1"
           description: Required for optimistic locking (version check)
       requestBody:
         content:
@@ -325,6 +337,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "pol_185495e455ae"
       responses:
         '204':
           description: Deleted
@@ -338,11 +351,13 @@ paths:
           required: true
           schema:
             type: string
+          example: "pol_185495e455ae"
         - in: header
           name: If-Match
           required: true
           schema:
             type: string
+          example: "1"
           description: Required for optimistic locking (version check)
       requestBody:
         content:
@@ -373,6 +388,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "pol_185495e455ae"
       responses:
         '200':
           content:
@@ -408,6 +424,7 @@ paths:
           required: true
           schema:
             type: string
+          example: "pol_185495e455ae"
         - description: |
             Unique key to ensure request is executed only once.
             Same key + same request → no duplicate processing.

@@ -1,3 +1,4 @@
+const { error } = require('../utils/response.util');
 const jwt = require("jsonwebtoken");
 
 const clients = [
