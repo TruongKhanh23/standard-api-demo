@@ -21,8 +21,24 @@ app.use('/oauth', authRoutes);
 
 // Rate limit
 const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 100
+  windowMs: 60 * 1000, // 1 phút
+  max: 100,
+
+  standardHeaders: true,   // return RateLimit-* header
+  legacyHeaders: false,    // bỏ X-RateLimit-*
+
+  handler: (req, res) => {
+    console.log("🚫 Rate limit exceeded");
+
+    // Retry semantics (QUAN TRỌNG)
+    res.set("Retry-After", "60");
+
+    res.status(429).json({
+      error: "Too many requests",
+      message: "Please retry after 60 seconds",
+      retryAfter: 60
+    });
+  }
 });
 app.use(limiter);
 

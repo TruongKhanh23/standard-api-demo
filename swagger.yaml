@@ -96,12 +96,19 @@ info:
     📌 SLA: 99.9% uptime
     📌 Maintenance Window: Sunday 02:00 - 03:00 ICT
     📌 Consumer expectation: Always available except planned downtime
-
+    
+    📌 Latency Class: Sub-second
+    📌 Target P95 < 300ms
+    📌 Target P99 < 1s
   x-availability:
     class: "24x7"
     sla: "99.9%"
     maintenance_window: "Sunday 02:00-03:00 ICT"
     support: "L1 24x7, L2 business hours"
+  x-latency:
+    class: "sub-second"
+    p95: "300ms"
+    p99: "1s"
 openapi: 3.0.0
 paths:
   /oauth/token:
@@ -385,9 +392,16 @@ paths:
         📌 Availability: 24x7 Mission Critical
         📌 SLA: 99.95%
         📌 Idempotency required for safe retries
+        📌 Latency: Sub-second
+        📌 Timeout recommended: 2s
+        📌 Retry policy: exponential backoff
       x-availability:
         class: "24x7-critical"
         sla: "99.95%"
+      x-latency:
+        class: "sub-second"
+        p95: "200ms"
+        p99: "500ms"
       parameters:
         - in: path
           name: id

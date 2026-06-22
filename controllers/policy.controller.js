@@ -53,7 +53,7 @@ function mapResponse(policy, req) {
   const user = req.user;
   const role = user?.role || "USER";
 
-  // ✅ strict debug control
+  // strict debug control
   if (debug && (role === "ADMIN" || role === "DEV")) {
     return policy;
   }
@@ -157,7 +157,7 @@ exports.update = (req, res) => {
     return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
   }
 
-  // ✅ ✅ CHECK IF-MATCH
+  // CHECK IF-MATCH
   const ifMatch = req.headers["if-match"];
 
   if (!ifMatch) {
@@ -172,7 +172,7 @@ exports.update = (req, res) => {
       .json(error("PRECONDITION_FAILED", "Resource was modified", req));
   }
 
-  // ✅ Validate full object
+  // Validate full object
   const { policyNumber, premiumAmount, currency } = req.body;
 
   if (!policyNumber || !premiumAmount || !currency) {
@@ -277,26 +277,46 @@ exports.patch = (req, res) => {
   res.status(201).json(mapResponse(policy, req));
 };
 
-exports.topUp = (req, res) => {
+exports.topUp = async (req, res) => {
   console.log("➡️ Controller: TOP-UP", req.params.id);
 
   const { amount } = req.body;
+  const idempotencyKey = req.headers["idempotency-key"];
 
+  // Validate input
   if (!amount || isNaN(amount) || amount <= 0) {
     return res
       .status(400)
       .json(error("INVALID_REQUEST", "Amount must be positive number", req));
   }
 
-  const policy = service.topUp(req.params.id, amount);
+  try {
+    // Pass idempotency key xuống service
+    const policy = await service.topUp(req.params.id, amount, idempotencyKey);
 
-  if (!policy) {
-    return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
+    if (!policy) {
+      return res
+        .status(404)
+        .json(error("NOT_FOUND", "Policy not found", req));
+    }
+
+    // Add header để client hiểu retry semantics
+    if (idempotencyKey) {
+      res.set("Idempotency-Key", idempotencyKey);
+    }
+
+    res.status(201).json(mapResponse(policy, req));
+  } catch (err) {
+    // Handle duplicate hoặc business conflict
+    if (err.message === "DUPLICATE_REQUEST") {
+      return res.status(409).json({
+        error: "Duplicate request detected",
+        retryAfter: 2
+      });
+    }
+
+    throw err; // forward to error middleware
   }
-
-  const debug = isDebugMode(req);
-
-  res.status(201).json(mapResponse(policy, req));
 };
 
 function error(code, message, req) {
@@ -324,11 +344,3 @@ exports.deactivate = (req, res) => {
 
   res.json(mapResponse(policy));
 };
-
-function error(code, message, req) {
-  return {
-    code,
-    message,
-    correlationId: req.correlationId,
-  };
-}

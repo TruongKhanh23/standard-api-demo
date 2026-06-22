@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require("uuid");
+const processedTransactions = new Map();
 
 const generatePolicyId = () => {
   return "pol_" + uuidv4().replace(/-/g, "").slice(0, 12);
@@ -136,21 +137,32 @@ exports.delete = (id) => {
   return true;
 };
 
-exports.topUp = (id, amount) => {
+exports.topUp = async (id, amount, idempotencyKey) => {
   console.log("🔧 Service: TOP-UP", id, amount);
+  await new Promise(r => setTimeout(r, 2000));
+  if (idempotencyKey && processedTransactions.has(idempotencyKey)) {
+    console.log("🔁 Duplicate business execution prevented");
+    return processedTransactions.get(idempotencyKey);
+  }
 
   const policy = policies.find((p) => p.id === id);
   if (!policy) return null;
 
-  // 🔥 Business logic (KHÔNG idempotent!)
+  // business execution
   policy.accountBalance = (policy.accountBalance || 0) + amount;
 
   policy.updatedAt = new Date().toISOString();
   policy.version += 1;
 
-  // simulate side effect
+  const result = { ...policy };
+
+  // store result
+  if (idempotencyKey) {
+    processedTransactions.set(idempotencyKey, result);
+  }
+
   console.log(`💰 Added ${amount} to balance`);
   console.log(`📡 Notify billing system`);
 
-  return policy;
+  return result;
 };
