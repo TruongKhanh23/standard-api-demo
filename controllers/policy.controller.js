@@ -1,29 +1,86 @@
 const service = require("../services/policy.service");
 const { createPolicy } = require("../models/policy.model");
 
-function isDebugMode(req) {
-  const debug = req.headers["x-debug-mode"] === "true";
+// DATA CLASSIFICATION
+const FIELD_CLASSIFICATION = {
+  id: "PUBLIC",
+  internalId: "CONFIDENTIAL",
+  accountBalance: "SENSITIVE",
+  policyNumber: "PUBLIC",
+  premiumAmount: "PUBLIC",
+  currency: "PUBLIC",
+  status: "PUBLIC",
+  version: "INTERNAL",
+  createdAt: "INTERNAL",
+  updatedAt: "INTERNAL",
+};
 
-  if (!debug) return false;
+// RBAC POLICY
+const FIELD_ACCESS = {
+  USER: {
+    CONFIDENTIAL: "exclude",
+    SENSITIVE: "mask",
+    INTERNAL: "exclude",
+    PUBLIC: "full",
+  },
+  DEV: {
+    CONFIDENTIAL: "exclude",
+    SENSITIVE: "full",
+    INTERNAL: "full",
+    PUBLIC: "full",
+  },
+  ADMIN: {
+    CONFIDENTIAL: "exclude",
+    SENSITIVE: "full",
+    INTERNAL: "full",
+    PUBLIC: "full",
+  },
+};
 
-  const user = req.user;
-
-  if (!user || user.type !== "user") {
-    return false;
-  }
-
-  const allowedRoles = ["ADMIN", "DEV"];
-
-  return allowedRoles.includes(user.role);
+// MASK FUNCTIONS
+function maskBalance(value) {
+  if (!value) return value;
+  return "****" + value.toString().slice(-4);
 }
 
-function mapResponse(policy, isDebug) {
-  if (isDebug) {
+function isDebugMode(req) {
+  return req.headers["x-debug-mode"]?.toString().toLowerCase() === "true";
+}
+
+function mapResponse(policy, req) {
+  const debug = isDebugMode(req);
+
+  const user = req.user;
+  const role = user?.role || "USER";
+
+  // ✅ strict debug control
+  if (debug && (role === "ADMIN" || role === "DEV")) {
     return policy;
   }
 
-  const { internalId, ...rest } = policy;
-  return rest;
+  const accessPolicy = FIELD_ACCESS[role] || FIELD_ACCESS.USER;
+
+  const result = {};
+
+  for (const key in policy) {
+    const classification = FIELD_CLASSIFICATION[key] || "PUBLIC";
+    const access = accessPolicy[classification] || "exclude";
+    console.log("KEY:", key, "CLASS:", classification, "ACCESS:", access);
+    if (access === "exclude") continue;
+
+    if (access === "mask") {
+      if (key === "accountBalance") {
+        result[key] = maskBalance(policy[key]);
+      } else {
+        result[key] = "***";
+      }
+      continue;
+    }
+
+    result[key] = policy[key];
+  }
+
+  return result;
 }
 
 exports.getAll = (req, res) => {
@@ -33,7 +90,7 @@ exports.getAll = (req, res) => {
 
   res.json({
     ...result,
-    data: result.data.map((p) => mapResponse(p, debug)),
+    data: result.data.map((p) => mapResponse(p, req)),
   });
 };
 
@@ -48,7 +105,7 @@ exports.getById = (req, res) => {
 
   res.setHeader("ETag", policy.version.toString());
 
-  res.json(mapResponse(policy, debug));
+  res.json(mapResponse(policy, req));
 };
 
 exports.create = (req, res) => {
@@ -78,7 +135,7 @@ exports.create = (req, res) => {
 
     const debug = isDebugMode(req);
 
-    res.status(201).json(mapResponse(policy, debug));
+    res.status(201).json(mapResponse(policy, req));
   } catch (err) {
     return res
       .status(400)
@@ -130,7 +187,7 @@ exports.update = (req, res) => {
 
   const debug = isDebugMode(req);
 
-  res.status(201).json(mapResponse(policy, debug));
+  res.status(201).json(mapResponse(policy, req));
 };
 
 exports.patch = (req, res) => {
@@ -217,7 +274,7 @@ exports.patch = (req, res) => {
 
   const debug = isDebugMode(req);
 
-  res.status(201).json(mapResponse(policy, debug));
+  res.status(201).json(mapResponse(policy, req));
 };
 
 exports.topUp = (req, res) => {
@@ -239,7 +296,7 @@ exports.topUp = (req, res) => {
 
   const debug = isDebugMode(req);
 
-  res.status(201).json(mapResponse(policy, debug));
+  res.status(201).json(mapResponse(policy, req));
 };
 
 function error(code, message, req) {

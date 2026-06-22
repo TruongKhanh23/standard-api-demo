@@ -16,6 +16,10 @@ const clients = [
 // giả lập user store (production sẽ là SSO)
 const users = [
   {
+    username: "user",
+    role: "USER",
+  },
+  {
     username: "admin",
     role: "ADMIN",
   },
