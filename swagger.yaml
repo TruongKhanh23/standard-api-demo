@@ -11,29 +11,32 @@ components:
           type: string
       type: object
     Policy:
+      type: object
       properties:
-        accountBalance:
-          type: integer
-        createdAt:
-          format: date-time
-          type: string
-        currency:
-          type: string
         id:
           type: string
+        internalId:
+          type: integer
+          description: Only visible in debug mode
         policyNumber:
           type: string
         premiumAmount:
           type: integer
+        accountBalance:
+          type: integer
+        currency:
+          type: string
         status:
+          type: string
           enum: [ACTIVE, INACTIVE]
-          type: string
-        updatedAt:
-          format: date-time
-          type: string
         version:
           type: integer
-      type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     PolicyListResponse:
       properties:
         data:
@@ -79,6 +82,10 @@ components:
       bearerFormat: JWT
       scheme: bearer
       type: http
+      description: |
+        Bearer token supports:
+        - Client token (type=client, scope-based)
+        - User token (type=user, role-based)
 info:
   title: Policy API
   version: 1.0.0
@@ -86,38 +93,76 @@ openapi: 3.0.0
 paths:
   /oauth/token:
     post:
+      summary: Generate access token
+      description: |
+        Supports 2 grant types:
+        - client_credentials (Service account)
+        - authorization_code (User account simulation)
       requestBody:
+        required: true
         content:
           application/x-www-form-urlencoded:
             schema:
+              type: object
               properties:
                 grant_type:
-                  example: client_credentials
                   type: string
-              type: object
-        required: true
+                  example: client_credentials
+                code:
+                  type: string
+                  description: Required when grant_type = authorization_code
       responses:
         '200':
+          description: Token issued
           content:
             application/json:
               schema:
+                type: object
                 properties:
                   access_token:
                     type: string
+                  token_type:
+                    type: string
+                    example: Bearer
                   expires_in:
                     type: integer
                   scope:
                     type: string
-                  token_type:
-                    example: Bearer
+                    description: For client_credentials only
+                  role:
                     type: string
-                type: object
-          description: Token issued
+                    description: For authorization_code only
+        '400':
+          description: Invalid request or unsupported grant type
         '401':
-          description: Invalid client
+          description: Invalid client or code
       security:
         - basicAuth: []
-      summary: Generate access token (Client Credentials)
+  /oauth/authorize:
+    get:
+      summary: Simulate authorization (get auth code)
+      description: |
+        Simulate Authorization Code flow.
+        Returns a base64 encoded code based on username.
+      parameters:
+        - in: query
+          name: username
+          required: true
+          schema:
+            type: string
+            example: admin
+      responses:
+        '200':
+          description: Authorization code generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+        '401':
+          description: Invalid user
   /policies:
     get:
       parameters:
@@ -136,6 +181,15 @@ paths:
           schema:
             default: 10
             type: integer
+        - in: header
+          name: X-Debug-Mode
+          required: false
+          schema:
+            type: string
+            example: "true"
+          description: |
+            Enable debug mode.
+            Only works for USER token with role ADMIN or DEV.
       responses:
         '200':
           content:
@@ -146,6 +200,10 @@ paths:
       security:
         - bearerAuth: []
       summary: Get all policies
+      description: |
+        - Opaque identifiers are used to prevent enumeration attacks.
+        - Internal ID is only exposed in debug mode.
+        - Debug mode requires USER token with ADMIN or DEV role.
     post:
       requestBody:
         content:
@@ -177,6 +235,15 @@ paths:
           required: true
           schema:
             type: string
+        - in: header
+          name: X-Debug-Mode
+          required: false
+          schema:
+            type: string
+            example: "true"
+          description: |
+            Enable debug mode.
+            Only works for USER token with role ADMIN or DEV. 
       responses:
         '200':
           content:
@@ -184,11 +251,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/Policy'
           description: OK
+          headers:
+            ETag:
+              description: Current resource version
+              schema:
+                type: string
         '404':
           description: Not found
       security:
         - bearerAuth: []
       summary: Get policy by ID
+      description: |
+        - Opaque identifiers are used to prevent enumeration attacks.
+        - Internal ID is only exposed in debug mode.
+        - Debug mode requires USER token with ADMIN or DEV role.
     patch: 
       parameters:
         - in: path
@@ -196,6 +272,12 @@ paths:
           required: true
           schema:
             type: string
+        - in: header
+          name: If-Match
+          required: true
+          schema:
+            type: string
+          description: Required for optimistic locking (version check)
       requestBody:
         content:
           application/json:
@@ -209,21 +291,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Policy'
           description: Updated
-        '404':
-          description: Not found
-        delete:
-          parameters:
-            - in: path
-              name: id
-              required: true
+          headers:
+            ETag:
+              description: Current resource version
               schema:
                 type: string
-          responses:
-            '204':
-              description: Deleted
-          security:
-            - bearerAuth: []
-          summary: Delete policy
+        '404':
+          description: Not found
+    delete:
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+      security:
+        - bearerAuth: []
+      summary: Delete policy
       security:
         - bearerAuth: []
       summary: Partially update policy
@@ -234,6 +321,12 @@ paths:
           required: true
           schema:
             type: string
+        - in: header
+          name: If-Match
+          required: true
+          schema:
+            type: string
+          description: Required for optimistic locking (version check)
       requestBody:
         content:
           application/json:
@@ -247,6 +340,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Policy'
           description: Updated
+          headers:
+            ETag:
+              description: Current resource version
+              schema:
+                type: string
       security:
         - bearerAuth: []
       summary: Update policy
@@ -297,7 +395,7 @@ paths:
               $ref: '#/components/schemas/TopUpRequest'
         required: true
       responses:
-        '200':
+        '201':
           content:
             application/json:
               schema:

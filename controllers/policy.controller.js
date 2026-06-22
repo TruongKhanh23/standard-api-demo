@@ -2,7 +2,19 @@ const service = require("../services/policy.service");
 const { createPolicy } = require("../models/policy.model");
 
 function isDebugMode(req) {
-  return req.headers["x-debug-mode"] === "true";
+  const debug = req.headers["x-debug-mode"] === "true";
+
+  if (!debug) return false;
+
+  const user = req.user;
+
+  if (!user || user.type !== "user") {
+    return false;
+  }
+
+  const allowedRoles = ["ADMIN", "DEV"];
+
+  return allowedRoles.includes(user.role);
 }
 
 function mapResponse(policy, isDebug) {
