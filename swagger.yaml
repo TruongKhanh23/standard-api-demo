@@ -89,6 +89,19 @@ components:
 info:
   title: Policy API
   version: 1.0.0
+  description: |
+    Policy management API.
+
+    📌 Availability Class: 24x7
+    📌 SLA: 99.9% uptime
+    📌 Maintenance Window: Sunday 02:00 - 03:00 ICT
+    📌 Consumer expectation: Always available except planned downtime
+
+  x-availability:
+    class: "24x7"
+    sla: "99.9%"
+    maintenance_window: "Sunday 02:00-03:00 ICT"
+    support: "L1 24x7, L2 business hours"
 openapi: 3.0.0
 paths:
   /oauth/token:
@@ -311,9 +324,6 @@ paths:
       security:
         - bearerAuth: []
       summary: Delete policy
-      security:
-        - bearerAuth: []
-      summary: Partially update policy
     put:
       parameters:
         - in: path
@@ -370,9 +380,14 @@ paths:
     post:
       description: |
         Add money to policy account balance.
-
         ⚠️ This operation is NOT idempotent by default (amount is added).
         ✅ Using Idempotency-Key ensures the request is processed only once.
+        📌 Availability: 24x7 Mission Critical
+        📌 SLA: 99.95%
+        📌 Idempotency required for safe retries
+      x-availability:
+        class: "24x7-critical"
+        sla: "99.95%"
       parameters:
         - in: path
           name: id
