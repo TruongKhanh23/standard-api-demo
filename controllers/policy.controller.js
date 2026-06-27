@@ -188,7 +188,7 @@ exports.update = (req, res) => {
 
   const debug = isDebugMode(req);
 
-  res.status(201).json(mapResponse(policy, req));
+  res.status(200).json(mapResponse(policy, req));
 };
 
 exports.patch = (req, res) => {
@@ -275,28 +275,50 @@ exports.patch = (req, res) => {
 
   const debug = isDebugMode(req);
 
-  res.status(201).json(mapResponse(policy, req));
+  res.status(200).json(mapResponse(policy, req));
 };
 
+
+const ALLOWED_CURRENCIES = ['VND', 'USD']; // nếu cần
 
 exports.topUp = async (req, res, next) => {
   console.log("➡️ Controller: TOP-UP", req.params.id);
 
+  const { id } = req.params;
   const { amount } = req.body;
-  const idempotencyKey = req.headers["idempotency-key"];
+  const rawKey = req.headers["idempotency-key"];
+  const idempotencyKey = typeof rawKey === "string" ? rawKey.trim() : "";
 
-  if (!amount || isNaN(amount) || amount <= 0) {
+  // ─────────── 1) Validate amount ───────────
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
     return res.status(400).json(
-      error("INVALID_REQUEST", "Amount must be positive number", req)
+      error("INVALID_REQUEST", "Field 'amount' must be a positive number", req)
     );
   }
 
-  try {
-    const policy = await service.topUp(
-      req.params.id,
-      amount,
-      idempotencyKey
+  // Optional: chặn số quá lớn (overflow / fraud)
+  if (amount > 1_000_000_000_000) {
+    return res.status(422).json(
+      error("AMOUNT_TOO_LARGE", "Amount exceeds maximum allowed", req)
     );
+  }
+
+  // ─────────── 2) Validate idempotency key ───────────
+  // Header tồn tại nhưng rỗng → 400 (đúng RFC draft idempotency-key)
+  if (rawKey !== undefined && idempotencyKey === "") {
+    return res.status(400).json(
+      error("INVALID_IDEMPOTENCY_KEY", "Idempotency-Key header must not be empty", req)
+    );
+  }
+  if (idempotencyKey && idempotencyKey.length > 255) {
+    return res.status(400).json(
+      error("INVALID_IDEMPOTENCY_KEY", "Idempotency-Key exceeds 255 chars", req)
+    );
+  }
+
+  // ─────────── 3) Business call ───────────
+  try {
+    const policy = await service.topUp(id, amount, idempotencyKey || null);
 
     if (!policy) {
       return res.status(404).json(
@@ -304,23 +326,45 @@ exports.topUp = async (req, res, next) => {
       );
     }
 
-    if (idempotencyKey && idempotencyKey.trim() !== "") {
+    // Echo lại key để client biết server đã chấp nhận
+    if (idempotencyKey) {
       res.set("Idempotency-Key", idempotencyKey);
     }
 
-    res.setHeader("Content-Type", "application/json");
+    // ETag cho concurrency control
+    res.set("ETag", `W/"${policy.id}-v${policy.version}"`);
 
-    return res.status(201).json(mapResponse(policy, req));
-
+    // ✅ 200 OK (không phải 201)
+    return res.status(200).json(mapResponse(policy, req));
   } catch (err) {
-    if (err.message === "DUPLICATE_REQUEST") {
-      return res.status(409).json({
-        error: "Duplicate request detected",
-        retryAfter: 2
-      });
-    }
+    // ─── Map domain errors → HTTP ───
+    switch (err.code) {
+      case "IN_FLIGHT":
+        return res
+          .status(409)
+          .set("Retry-After", "2")
+          .json(error("IN_FLIGHT", "Request is still processing", req, { retryAfter: 2 }));
 
-    return next(err); // ✅ FIX
+      case "DUPLICATE_REQUEST":
+        // Replay với cùng key nhưng khác payload → conflict thật sự
+        return res
+          .status(409)
+          .json(error("DUPLICATE_REQUEST", "Idempotency key reused with different payload", req));
+
+      case "INSUFFICIENT_BALANCE":
+        return res.status(422).json(
+          error("INSUFFICIENT_BALANCE", "Account balance is not sufficient", req)
+        );
+
+      case "POLICY_INACTIVE":
+        return res.status(422).json(
+          error("POLICY_INACTIVE", "Cannot top-up an inactive policy", req)
+        );
+
+      default:
+        console.error("❌ Unexpected top-up error:", err);
+        return next(err); // → global error handler → 500
+    }
   }
 };
 

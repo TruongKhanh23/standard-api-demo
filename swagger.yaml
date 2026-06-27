@@ -10,14 +10,20 @@ components:
         message:
           type: string
       type: object
+    OAuthErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, invalid_client, invalid_grant, unauthorized_client, unsupported_grant_type, invalid_scope]
+        error_description:
+          type: string
     Policy:
       type: object
       properties:
         id:
           type: string
-        internalId:
-          type: integer
-          description: Only visible in debug mode
         policyNumber:
           type: string
         premiumAmount:
@@ -29,8 +35,6 @@ components:
         status:
           type: string
           enum: [ACTIVE, INACTIVE]
-        version:
-          type: integer
         createdAt:
           type: string
           format: date-time
@@ -53,18 +57,50 @@ components:
               type: integer
           type: object
       type: object
-    PolicyRequest:
+    CreatePolicyRequest:
       properties:
-        currency:
-          type: string
         policyNumber:
           type: string
+          example: "P-999"
         premiumAmount:
           type: integer
+          example: 1500000
+        accountBalance:
+          type: integer
+          example: 1500000
+        currency:
+          type: string
+          example: "VND"  
       required:
-        - policyNumber
-        - premiumAmount
-        - currency
+          - policyNumber
+          - premiumAmount
+          - currency
+      type: object
+    UpdatePolicyRequest:
+      properties:
+        policyNumber:
+          type: string
+          example: "P-001"
+        premiumAmount:
+          type: integer
+          example: 1500000
+        currency:
+          type: string
+          example: "VND"  
+        status:
+          type: string
+          example: "ACTIVE"
+      required:
+          - policyNumber
+          - premiumAmount
+          - currency
+          - status
+      type: object
+    PartialUpdatePolicyRequest:
+      properties:
+        premiumAmount:
+          type: integer
+          example: 2000000
       type: object
     TopUpRequest:
       properties:
@@ -116,21 +152,32 @@ paths:
       summary: Generate access token
       description: |
         Supports 2 grant types:
-        - client_credentials (Service account)
-        - authorization_code (User account simulation)
+        - `client_credentials` (Service account, requires Basic Auth)
+        - `authorization_code` (User account simulation, requires `code`)
+      security:
+        - basicAuth: []
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
               type: object
+              required:
+                - grant_type
               properties:
                 grant_type:
                   type: string
+                  enum: [client_credentials, authorization_code]
                   example: client_credentials
                 code:
                   type: string
-                  description: Required when grant_type = authorization_code
+                  description: Required when `grant_type = authorization_code`
+                  example: "YWRtaW4="
+            examples:
+              clientCredentials:
+                summary: Service account login
+                value:
+                  grant_type: client_credentials
       responses:
         '200':
           description: Token issued
@@ -138,26 +185,37 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [token_type, expires_in]
                 properties:
                   access_token:
                     type: string
+                    pattern: '^eyJ[\w-]+\.[\w-]+\.[\w-]+$'  # JWT regex
                   token_type:
                     type: string
-                    example: Bearer
+                    enum: [Bearer]
                   expires_in:
                     type: integer
+                    minimum: 1
                   scope:
                     type: string
-                    description: For client_credentials only
-                  role:
-                    type: string
-                    description: For authorization_code only
         '400':
           description: Invalid request or unsupported grant type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthErrorResponse'
+              example:
+                error: "invalid_request"
+                error_description: "Missing grant_type"
         '401':
-          description: Invalid client or code
-      security:
-        - basicAuth: []
+          description: Invalid client credentials or auth code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthErrorResponse'
+              example:
+                error: "invalid_code"
+                error_description: "Invalid client credentials or auth code"
   /oauth/authorize:
     get:
       summary: Simulate authorization (get auth code)
@@ -229,7 +287,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PolicyRequest'
+              $ref: '#/components/schemas/CreatePolicyRequest'
         required: true
       responses:
         '201':
@@ -264,7 +322,7 @@ paths:
           required: true
           schema:
             type: string
-          example: "pol_185495e455ae"
+          example: "pol_b2c3d4e5f6a7"
         - in: header
           name: X-Debug-Mode
           required: false
@@ -295,14 +353,14 @@ paths:
         - Opaque identifiers are used to prevent enumeration attacks.
         - Internal ID is only exposed in debug mode.
         - Debug mode requires USER token with ADMIN or DEV role.
-    patch: 
+    put:
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: string
-          example: "pol_185495e455ae"
+          example: "pol_b2c3d4e5f6a7"
         - in: header
           name: If-Match
           required: true
@@ -314,7 +372,45 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/UpdatePolicyRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+          description: Updated
+          headers:
+            ETag:
+              description: Current resource version
+              schema:
+                type: string
+      security:
+        - bearerAuth: []
+      summary: Update policy
+    patch: 
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "pol_b2c3d4e5f6a7"
+        - in: header
+          name: If-Match
+          required: true
+          schema:
+            type: string
+          example: "1"
+          description: Required for optimistic locking (version check)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartialUpdatePolicyRequest'
         required: true
       responses:
         '200':
@@ -337,49 +433,13 @@ paths:
           required: true
           schema:
             type: string
-          example: "pol_185495e455ae"
+          example: "pol_d4e5f6a7b8c9"
       responses:
         '204':
           description: Deleted
       security:
         - bearerAuth: []
       summary: Delete policy
-    put:
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-          example: "pol_185495e455ae"
-        - in: header
-          name: If-Match
-          required: true
-          schema:
-            type: string
-          example: "1"
-          description: Required for optimistic locking (version check)
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PolicyRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Policy'
-          description: Updated
-          headers:
-            ETag:
-              description: Current resource version
-              schema:
-                type: string
-      security:
-        - bearerAuth: []
-      summary: Update policy
   /policies/{id}/deactivate:
     post:
       parameters:
@@ -388,7 +448,7 @@ paths:
           required: true
           schema:
             type: string
-          example: "pol_185495e455ae"
+          example: "pol_c3d4e5f6a7b8"
       responses:
         '200':
           content:
@@ -424,7 +484,7 @@ paths:
           required: true
           schema:
             type: string
-          example: "pol_185495e455ae"
+          example: "pol_a1b2c3d4e5f6"
         - description: |
             Unique key to ensure request is executed only once.
             Same key + same request → no duplicate processing.
@@ -441,7 +501,7 @@ paths:
               $ref: '#/components/schemas/TopUpRequest'
         required: true
       responses:
-        '201':
+        '200':
           content:
             application/json:
               schema:
@@ -459,9 +519,15 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Invalid request
         '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
+          description: Unauthorized — missing or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: "INVALID_TOKEN"
+                message: "Invalid token"
+                correlationId: "00000000-0000-0000-0000-000000000001"
         '404':
           content:
             application/json:

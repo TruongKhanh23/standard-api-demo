@@ -1,0 +1,44 @@
+{
+  "policies": [
+    {
+      "internalId": 1,
+      "id": "pol_a1b2c3d4e5f6",
+      "policyNumber": "P-001",
+      "premiumAmount": 1000000,
+      "accountBalance": 1000000,
+      "currency": "VND",
+      "status": "ACTIVE",
+      "version": 1,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "internalId": 2,
+      "id": "pol_b2c3d4e5f6a7",
+      "policyNumber": "P-002",
+      "premiumAmount": 2000000,
+      "accountBalance": 1000000,
+      "currency": "USD",
+      "status": "INACTIVE",
+      "version": 1,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "internalId": 3,
+      "id": "pol_c3d4e5f6a7b8",
+      "policyNumber": "P-003",
+      "premiumAmount": 3000000,
+      "accountBalance": 500000,
+      "currency": "VND",
+      "status": "ACTIVE",
+      "version": 1,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "nextInternalId": 4,
+    "fixtureForNewPolicyId": "pol_d4e5f6a7b8c9"
+  }
+}

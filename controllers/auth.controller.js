@@ -48,7 +48,10 @@ exports.getToken = (req, res) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Basic ")) {
-      return res.status(401).json({ error: "invalid_client" });
+      return res.status(401).json({
+        error: "invalid_code",
+        error_description: "Invalid client credentials or auth code",
+      });
     }
 
     const base64 = authHeader.split(" ")[1];
@@ -60,7 +63,10 @@ exports.getToken = (req, res) => {
     );
 
     if (!client) {
-      return res.status(401).json({ error: "invalid_client" });
+      return res.status(401).json({
+        error: "invalid_code",
+        error_description: "Invalid client credentials or auth code",
+      });
     }
 
     const token = jwt.sign(
@@ -98,7 +104,10 @@ exports.getToken = (req, res) => {
     const user = users.find((u) => u.username === username);
 
     if (!user) {
-      return res.status(401).json({ error: "invalid_code" });
+      return res.status(401).json({
+        error: "invalid_code",
+        error_description: "Invalid client credentials or auth code",
+      });
     }
 
     const token = jwt.sign(
@@ -132,7 +141,10 @@ exports.authorize = (req, res) => {
   const user = users.find((u) => u.username === username);
 
   if (!user) {
-    return res.status(401).send("Invalid user");
+    return res.status(401).json({
+        error: "invalid_code",
+        error_description: "Invalid client credentials or auth code",
+      });
   }
 
   // simulate auth code
