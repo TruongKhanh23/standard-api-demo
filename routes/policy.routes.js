@@ -13,6 +13,4 @@ router.delete("/:id", auth("policy.write"), ctrl.delete);
 
 router.post("/:id/top-up", idempotency, auth("policy.write"), ctrl.topUp);
 
-router.post("/:id/deactivate", auth("policy.write"), ctrl.deactivate);
-
 module.exports = router;

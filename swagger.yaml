@@ -440,25 +440,6 @@ paths:
       security:
         - bearerAuth: []
       summary: Delete policy
-  /policies/{id}/deactivate:
-    post:
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-          example: "pol_c3d4e5f6a7b8"
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Policy'
-          description: Policy deactivated
-      security:
-        - bearerAuth: []
-      summary: Deactivate policy
   /policies/{id}/top-up:
     post:
       description: |

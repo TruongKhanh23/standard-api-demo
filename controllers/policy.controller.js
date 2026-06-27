@@ -375,13 +375,3 @@ exports.delete = (req, res) => {
   }
   res.status(204).send();
 };
-
-exports.deactivate = (req, res) => {
-  const policy = service.update(req.params.id, { status: "INACTIVE" });
-
-  if (!policy) {
-    return res.status(404).json(error("NOT_FOUND", "Policy not found", req));
-  }
-
-  res.json(mapResponse(policy));
-};
